@@ -192,21 +192,52 @@ function NewsPage() {
     const fetchNews = async () => {
       try {
         setLoading(true);
+        const apiKey = import.meta.env.VITE_NEWS_API_KEY;
+        
+        if (!apiKey) {
+          throw new Error('News API key is not configured. Please check your environment variables.');
+        }
+
+        console.log('Attempting to fetch news with API key:', apiKey ? 'Present' : 'Missing');
+
         const response = await fetch(
           `https://newsapi.org/v2/everything?q=${encodeURIComponent(
             gamingKeywords.join(' OR ')
-          )}&apiKey=${import.meta.env.VITE_NEWS_API_KEY}`
+          )}&apiKey=${apiKey}`,
+          {
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            }
+          }
         );
         
+        console.log('Response status:', response.status);
+        
+        if (response.status === 426) {
+          throw new Error('Protocol version mismatch. Please ensure your API endpoint is using the correct protocol.');
+        }
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch news');
+          const errorData = await response.json().catch(() => ({}));
+          console.error('API Error Response:', errorData);
+          throw new Error(errorData.message || `Failed to fetch news. Status: ${response.status}`);
         }
         
         const data = await response.json();
+        if (data.status === 'error') {
+          throw new Error(data.message || 'News API returned an error');
+        }
+        
+        if (!data.articles || !Array.isArray(data.articles)) {
+          throw new Error('Invalid response format from News API');
+        }
+        
         setNews(data.articles);
         setFilteredNews(data.articles);
       } catch (err) {
-        setError(err.message);
+        console.error('Error fetching news:', err);
+        setError(err.message || 'Failed to load news. Please try again later.');
       } finally {
         setLoading(false);
       }
